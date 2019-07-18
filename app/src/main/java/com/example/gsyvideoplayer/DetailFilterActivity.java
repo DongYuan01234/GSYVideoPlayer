@@ -1,10 +1,14 @@
 package com.example.gsyvideoplayer;
 
+import android.Manifest;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.opengl.Matrix;
 import android.os.Bundle;
-import android.support.v4.widget.NestedScrollView;
+import androidx.annotation.NonNull;
+import androidx.core.widget.NestedScrollView;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
@@ -54,7 +58,7 @@ import com.shuyu.gsyvideoplayer.utils.Debuger;
 import com.shuyu.gsyvideoplayer.utils.FileUtils;
 import com.shuyu.gsyvideoplayer.utils.GSYVideoType;
 import com.shuyu.gsyvideoplayer.utils.GifCreateHelper;
-import com.shuyu.gsyvideoplayer.video.base.GSYBaseVideoPlayer;
+import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -63,6 +67,12 @@ import java.util.TimerTask;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import permissions.dispatcher.NeedsPermission;
+import permissions.dispatcher.OnNeverAskAgain;
+import permissions.dispatcher.OnPermissionDenied;
+import permissions.dispatcher.OnShowRationale;
+import permissions.dispatcher.PermissionRequest;
+import permissions.dispatcher.RuntimePermissions;
 
 /**
  * 滤镜
@@ -70,8 +80,8 @@ import butterknife.ButterKnife;
  * 或者参考DetailPlayer、DetailListPlayer实现
  * Created by guoshuyu on 2017/6/18.
  */
-
-public class DetailFilterActivity extends GSYBaseActivityDetail {
+@RuntimePermissions
+public class DetailFilterActivity extends GSYBaseActivityDetail<StandardGSYVideoPlayer> {
 
     @BindView(R.id.post_detail_nested_scroll)
     NestedScrollView postDetailNestedScroll;
@@ -107,7 +117,8 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
 
     private float deep = 0.8f;
 
-    private String url = "http://baobab.wdjcdn.com/14564977406580.mp4";
+    private String url = "https://res.exexm.com/cw_145225549855002";
+    //private String url = "http://9890.vod.myqcloud.com/9890_4e292f9a3dd011e6b4078980237cc3d3.f20.mp4";
 
     private Timer timer = new Timer();
 
@@ -162,7 +173,8 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
         mGSYVideoGLViewCustomRender = new GSYVideoGLViewCustomRender();
         mCustomBitmapIconEffect = new BitmapIconEffect(bitmap, dp2px(50), dp2px(50), 0.6f);
         mGSYVideoGLViewCustomRender.setBitmapEffect(mCustomBitmapIconEffect);
-        detailPlayer.setCustomGLRenderer(mGSYVideoGLViewCustomRender);*/
+        detailPlayer.setCustomGLRenderer(mGSYVideoGLViewCustomRender);
+        detailPlayer.setGLRenderMode(GSYVideoGLView.MODE_RENDER_SIZE);*/
 
         //多窗口播放效果
         //detailPlayer.setEffectFilter(new GammaEffect(0.8f));
@@ -170,6 +182,11 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
 
         //图片穿孔透视播放
         //detailPlayer.setCustomGLRenderer(new GSYVideoGLViewCustomRender3());
+
+        //高斯拉伸视频铺满背景，替换黑色，前台正常比例播放
+        //detailPlayer.setEffectFilter(new GaussianBlurEffect(6.0f, GaussianBlurEffect.TYPEXY));
+        //detailPlayer.setCustomGLRenderer(new GSYVideoGLViewCustomRender4());
+        //detailPlayer.setGLRenderMode(GSYVideoGLView.MODE_RENDER_SIZE);
 
         changeFilter.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -190,9 +207,11 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
         jump.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                shotImage(v);
+                //shotImage(v);
                 //JumpUtils.gotoControl(DetailFilterActivity.this);
                 //startActivity(new Intent(DetailControlActivity.this, MainActivity.class));
+
+                DetailFilterActivityPermissionsDispatcher.shotImageWithPermissionCheck(DetailFilterActivity.this, v);
             }
         });
 
@@ -208,11 +227,11 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
                     percentageType = 1;
                 }
                 //水印图动起来
-                /*cancelTask2();
-                mTimerTask2 = new TaskLocal2();
-                timer.schedule(mTimerTask2, 0, 400);
+                //cancelTask2();
+                //mTimerTask2 = new TaskLocal2();
+                //timer.schedule(mTimerTask2, 0, 400);
 
-                moveBitmap = !moveBitmap;*/
+                //moveBitmap = !moveBitmap;
             }
         });
 
@@ -220,7 +239,7 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
         startGif.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startGif();
+                DetailFilterActivityPermissionsDispatcher.startGifWithPermissionCheck(DetailFilterActivity.this);
             }
         });
 
@@ -240,7 +259,7 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
     }
 
     @Override
-    public GSYBaseVideoPlayer getGSYVideoPlayer() {
+    public StandardGSYVideoPlayer getGSYVideoPlayer() {
         return detailPlayer;
     }
 
@@ -279,6 +298,7 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        //恢复到原本的绘制模式
         GSYVideoType.setRenderType(backupRendType);
         cancelTask();
     }
@@ -286,7 +306,8 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
     /**
      * 视频截图
      */
-    private void shotImage(final View v) {
+    @NeedsPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    void shotImage(final View v) {
         //获取截图
         detailPlayer.taskShotPic(new GSYVideoShotListener() {
             @Override
@@ -334,7 +355,8 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
     /**
      * 开始gif截图
      */
-    private void startGif() {
+    @NeedsPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    void startGif() {
         //开始缓存各个帧
         mGifCreateHelper.startGif(new File(FileUtils.getPath()));
 
@@ -559,5 +581,42 @@ public class DetailFilterActivity extends GSYBaseActivityDetail {
                 Toast.makeText(DetailFilterActivity.this, tip, Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+
+    @OnShowRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    void showRationaleForCamera(final PermissionRequest request) {
+        new AlertDialog.Builder(this)
+                .setMessage("快给我权限")
+                .setPositiveButton("允许", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        request.proceed();
+                    }
+                })
+                .setNegativeButton("拒绝", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        request.cancel();
+                    }
+                })
+                .show();
+    }
+
+    @OnPermissionDenied(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    void showDeniedForCamera() {
+        Toast.makeText(this, "没有权限啊", Toast.LENGTH_SHORT).show();
+    }
+
+    @OnNeverAskAgain(Manifest.permission.CAMERA)
+    void showNeverAskForCamera() {
+        Toast.makeText(this, "再次授权", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        // NOTE: delegate the permission handling to generated method
+        DetailFilterActivityPermissionsDispatcher.onRequestPermissionsResult(this, requestCode, grantResults);
     }
 }
